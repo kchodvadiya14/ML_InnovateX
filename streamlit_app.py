@@ -133,8 +133,8 @@ def predict_fraud(features_dict, model_type='ann'):
     # Ensure feature order matches training
     features_df = features_df[FEATURE_NAMES]
     
-    # Scale features
-    features_scaled = scaler.transform(features_df)
+    # Scale features (convert to numpy array to avoid sklearn feature name validation)
+    features_scaled = scaler.transform(features_df.values)
     
     # Use ANN if available and requested
     if model_type == 'ann' and ann_model is not None:
