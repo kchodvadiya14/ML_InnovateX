@@ -2,26 +2,14 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-import warnings
-
-warnings.filterwarnings('ignore')
-
-# Try to import tensorflow/keras - fail gracefully if not available
-try:
-    import tensorflow as tf
-    from tensorflow.keras.models import load_model
-    HAS_TENSORFLOW = True
-except ImportError:
-    try:
-        from keras.models import load_model
-        HAS_TENSORFLOW = True
-    except ImportError:
-        HAS_TENSORFLOW = False
-        load_model = None
-
+import tensorflow as tf
+from tensorflow.keras.models import load_model
 import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime, timedelta
+import warnings
+
+warnings.filterwarnings('ignore')
 
 # Set page configuration
 st.set_page_config(
@@ -71,27 +59,12 @@ st.markdown("""
 # Load models and scaler
 @st.cache_resource
 def load_models_and_scaler():
-    """Load pre-trained models and scaler with fallback mechanisms."""
     try:
         scaler = joblib.load('models/scaler.pkl')
+        ann_model = load_model('models/ann_model.h5')
         best_ml_model = joblib.load('models/best_ml_model.pkl')
         ann_threshold = joblib.load('models/ann_threshold.pkl')
-        
-        ann_model = None
-        if HAS_TENSORFLOW and load_model is not None:
-            try:
-                ann_model = load_model('models/ann_model.h5')
-            except Exception as e:
-                st.warning(f"Could not load ANN model from h5: {e}. Will use Decision Tree model.")
-                ann_model = None
-        else:
-            st.info("TensorFlow not available. Using Decision Tree model as primary.")
-        
         return scaler, ann_model, best_ml_model, ann_threshold
-    except FileNotFoundError as e:
-        st.error(f"Model files not found: {e}")
-        st.error("Make sure models/ directory contains: ann_model.h5, best_ml_model.pkl, scaler.pkl, ann_threshold.pkl")
-        return None, None, None, None
     except Exception as e:
         st.error(f"Error loading models: {e}")
         return None, None, None, None
@@ -117,10 +90,7 @@ LOCATIONS = [
 ]
 
 def predict_fraud(features_dict, model_type='ann'):
-    """
-    Predict fraud using selected model with fallback.
-    Falls back to Decision Tree if ANN unavailable.
-    """
+    """Predict fraud using selected model"""
     scaler, ann_model, best_ml_model, ann_threshold = load_models_and_scaler()
     
     if scaler is None:
@@ -136,25 +106,16 @@ def predict_fraud(features_dict, model_type='ann'):
     # Scale features
     features_scaled = scaler.transform(features_df)
     
-    # Use ANN if available and requested
-    if model_type == 'ann' and ann_model is not None:
-        try:
-            prob = float(ann_model.predict(features_scaled, verbose=0)[0][0])
-            prediction = 'Fraudulent' if prob >= ann_threshold else 'Legitimate'
-            return prediction, prob, ann_threshold
-        except Exception as e:
-            st.warning(f"ANN prediction failed: {e}. Using Decision Tree instead.")
-            model_type = 'tree'
-    
-    # Fallback to Decision Tree (if ANN not available or failed)
-    if ann_model is None or model_type == 'tree':
-        try:
-            prob = float(best_ml_model.predict_proba(features_scaled)[0][1])
-            prediction = 'Fraudulent' if prob >= 0.5 else 'Legitimate'
-            return prediction, prob, 0.5
-        except Exception as e:
-            st.error(f"Prediction failed: {e}")
-            return None
+    if model_type == 'ann':
+        # ANN prediction with optimized threshold
+        prob = float(ann_model.predict(features_scaled, verbose=0)[0][0])
+        prediction = 'Fraudulent' if prob >= ann_threshold else 'Legitimate'
+        return prediction, prob, ann_threshold
+    else:
+        # ML model prediction (Decision Tree)
+        prob = float(best_ml_model.predict_proba(features_scaled)[0][1])
+        prediction = 'Fraudulent' if prob >= 0.5 else 'Legitimate'
+        return prediction, prob, 0.5
 
 def create_feature_dict(amount, transaction_type, hour, day, month, day_of_week, location):
     """Create feature dictionary from inputs"""
