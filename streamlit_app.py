@@ -98,7 +98,7 @@ def load_models_and_scaler():
 
 # Feature names (from notebook preprocessing)
 FEATURE_NAMES = [
-    'Amount', 'TransactionType', 'Hour', 'Day', 'Month', 'DayOfWeek',
+    'Amount', 'MerchantID', 'TransactionType', 'Hour', 'Day', 'Month', 'DayOfWeek',
     'Location_Dallas', 'Location_Houston', 'Location_Los Angeles',
     'Location_New York', 'Location_Philadelphia', 'Location_Phoenix',
     'Location_San Antonio', 'Location_San Diego', 'Location_San Jose'
@@ -156,10 +156,11 @@ def predict_fraud(features_dict, model_type='ann'):
             st.error(f"Prediction failed: {e}")
             return None
 
-def create_feature_dict(amount, transaction_type, hour, day, month, day_of_week, location):
+def create_feature_dict(amount, merchant_id, transaction_type, hour, day, month, day_of_week, location):
     """Create feature dictionary from inputs"""
     features = {
         'Amount': amount,
+        'MerchantID': merchant_id,
         'TransactionType': TRANSACTION_TYPES[transaction_type],
         'Hour': hour,
         'Day': day,
@@ -281,6 +282,7 @@ def main():
         with col1:
             st.subheader("Transaction Details")
             amount = st.number_input("Transaction Amount ($)", min_value=0.0, max_value=10000.0, step=1.0, value=100.0)
+            merchant_id = st.number_input("Merchant ID", min_value=1, max_value=9999, step=1, value=100)
             transaction_type = st.selectbox("Transaction Type", list(TRANSACTION_TYPES.keys()))
             
         with col2:
@@ -301,7 +303,7 @@ def main():
         # Prediction
         if st.button("🔮 Predict", use_container_width=True):
             features_dict = create_feature_dict(
-                amount, transaction_type, hour, day, month, day_of_week, location
+                amount, merchant_id, transaction_type, hour, day, month, day_of_week, location
             )
             
             with st.spinner("Making prediction..."):
@@ -390,6 +392,7 @@ def main():
                             try:
                                 features_dict = create_feature_dict(
                                     row['Amount'],
+                                    int(row['MerchantID']),
                                     row['TransactionType'],
                                     int(row['Hour']),
                                     int(row['Day']),
